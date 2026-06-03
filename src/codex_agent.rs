@@ -30,7 +30,8 @@ use codex_protocol::{
 };
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    fs,
+    path::{Component, Path, PathBuf},
     sync::{Arc, Mutex},
 };
 use tracing::{debug, info};
@@ -427,6 +428,23 @@ impl CodexAgent {
 }
 
 impl CodexAgent {
+    fn ensure_session_cwd_exists(cwd: &Path) -> Result<(), Error> {
+        if cwd
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+        {
+            return Err(Error::invalid_params().data(format!(
+                "working directory must not contain '..': {}",
+                cwd.display()
+            )));
+        }
+
+        fs::create_dir_all(cwd).map_err(|e| {
+            Error::internal_error()
+                .data(format!("failed to create working directory {}: {e}", cwd.display()))
+        })
+    }
+
     async fn initialize(&self, request: InitializeRequest) -> Result<InitializeResponse, Error> {
         let InitializeRequest {
             protocol_version,
@@ -552,6 +570,7 @@ impl CodexAgent {
             cwd, mcp_servers, ..
         } = request;
         info!("Creating new session with cwd: {}", cwd.display());
+        Self::ensure_session_cwd_exists(&cwd)?;
 
         let config = self.build_session_config(&cwd, mcp_servers)?;
         let num_mcp_servers = config.mcp_servers.len();
@@ -609,6 +628,7 @@ impl CodexAgent {
             mcp_servers,
             ..
         } = request;
+        Self::ensure_session_cwd_exists(&cwd)?;
 
         let rollout_path = find_thread_path_by_id_str(
             &self.config.codex_home,
