@@ -450,8 +450,10 @@ impl CodexAgent {
         }
 
         fs::create_dir_all(cwd).map_err(|e| {
-            Error::internal_error()
-                .data(format!("failed to create working directory {}: {e}", cwd.display()))
+            Error::internal_error().data(format!(
+                "failed to create working directory {}: {e}",
+                cwd.display()
+            ))
         })
     }
 
